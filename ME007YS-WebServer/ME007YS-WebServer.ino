@@ -91,6 +91,8 @@ int chk = 0x00;
 unsigned long tim0 = 0;
 unsigned long tim1;
 
+void listenForEthernetClients();
+
  /*
   * read 1 byte per each loop.As soon as this latest byte equals the checksum
   * of the three previous bytes, a valid reading is done.
@@ -140,7 +142,11 @@ void listenForEthernetClients() {
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.print(c);
+
+        if (c == '\n') Serial.println("\n");
+        else if (c == '\r') Serial.print("\r");
+        else Serial.print(c);
+
         // if you've gotten to the end of the line (received a newline
         // character) and the line is blank, the http request has ended,
         // so you can send a reply
