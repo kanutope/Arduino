@@ -4,6 +4,7 @@
 .vscode/launch.json
 .vscode/ipch
 
+include/
 libraries
 src/
 lib/
