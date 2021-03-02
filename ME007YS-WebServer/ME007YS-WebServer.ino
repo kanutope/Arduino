@@ -86,12 +86,72 @@ void setup() {
 }
 
 
-int idx = 0;
-int chk = 0x00;
-unsigned long tim0 = 0;
-unsigned long tim1;
+static int idx = 0;
+static int chk = 0x00;
+static unsigned long tim0 = 0;
+static unsigned long tim1;
 
-void listenForEthernetClients();
+void listenForEthernetClients() {
+  // listen for incoming clients
+  char  buf[256];
+  int   ptr;
+
+  EthernetClient client = server.available();
+  if (client) {
+    // an http request ends with a blank line
+    ptr = 0;
+
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+
+      /*
+        if (c == '\n') Serial.println("\\n");
+        else if (c == '\r') Serial.print("\\r");
+        else Serial.print(c);
+*/
+
+        // if you've gotten to the end of the line (received a newline
+        // character) and the line is blank, the http request has ended,
+        // so you can send a reply
+        if (c == '\n') {
+          if (ptr == 0) {
+            // send a standard http response header
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: text/html");
+            client.println();
+            
+            // print the current readings, in HTML format:
+            client.print("0 - Distance: ");
+            client.print(distance[0]/10);
+            client.print("cm");
+            client.println("<br />");
+            
+            client.print("1 - Distance: ");
+            client.print(distance[1]/10);
+            client.print("cm");
+            client.println("<br />");
+
+            break;
+          } else {
+            buf[ptr] = '\0';
+            Serial.print("strcasestr - ");
+            Serial.println(strcasestr(buf, "get"));
+            Serial.println(buf);
+            ptr = 0;
+          }
+        } else if (c != '\r') {
+          // you've gotten a character on the current line
+          buf[ptr++] = c;
+        }
+      }
+    }
+    // give the web browser time to receive the data
+    delay(1);
+    // close the connection:
+    client.stop();
+  }
+}
 
  /*
   * read 1 byte per each loop.As soon as this latest byte equals the checksum
@@ -114,11 +174,15 @@ void listenForEthernetClients();
   if ((tim1-tim0) > 1000) {
     Serial.print(toggle);
     if(distance[toggle] > 280) {
+      /*
       Serial.print(" - distance=");
       Serial.print(distance[toggle]/10);
       Serial.println("cm");
+      */
     }else {
+      /*
       Serial.println(" - below the lower limit");
+      */
     }
     
     tim0 = tim1;
@@ -131,57 +195,4 @@ void listenForEthernetClients();
 
   // listen for incoming Ethernet connections:
   listenForEthernetClients();
-}
-
-void listenForEthernetClients() {
-  // listen for incoming clients
-  EthernetClient client = server.available();
-  if (client) {
-    // an http request ends with a blank line
-    boolean currentLineIsBlank = true;
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-
-        if (c == '\n') Serial.println("\n");
-        else if (c == '\r') Serial.print("\r");
-        else Serial.print(c);
-
-        // if you've gotten to the end of the line (received a newline
-        // character) and the line is blank, the http request has ended,
-        // so you can send a reply
-        if (c == '\n' && currentLineIsBlank) {
-          // send a standard http response header
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: text/html");
-          client.println();
-          
-          // print the current readings, in HTML format:
-          client.print("0 - Distance: ");
-          client.print(distance[0]/10);
-          client.print("cm");
-          client.println("<br />");
-          
-          client.print("1 - Distance: ");
-          client.print(distance[1]/10);
-          client.print("cm");
-          client.println("<br />");
-
-          break;
-        }
-        
-        if (c == '\n') {
-          // you're starting a new line
-          currentLineIsBlank = true;
-        } else if (c != '\r') {
-          // you've gotten a character on the current line
-          currentLineIsBlank = false;
-        }
-      }
-    }
-    // give the web browser time to receive the data
-    delay(1);
-    // close the connection:
-    client.stop();
-  }
 }
