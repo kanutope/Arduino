@@ -9,7 +9,7 @@
   *         With initialization completed, We can get distance value
   * @Copyright [DFRobot](https://www.dfrobot.com),2016
   *            GUN Lesser General Pulic License
-  * 
+  *
   */
 
 #include <Ethernet.h>
@@ -34,6 +34,13 @@ EthernetServer server(80);
 const int RXpin = 2;
 const int TXpin = 3;
 const int MUXpin = 5;
+const int DBGpin = 6;
+
+int DBG = 0;
+#ifndef		dbgPrint
+#define   dbgPrint(str)     if (DBG) Serial.print(str)
+#define   dbgPrintln(str)   if (DBG) Serial.println(str)
+#endif
 
 SoftwareSerial mySerial(RXpin, TXpin); // RX, TX
 
@@ -44,7 +51,12 @@ int toggle = 0;
 void setup() {
   pinMode(MUXpin, OUTPUT);
   digitalWrite(MUXpin, toggle);
-  
+
+  pinMode(DBGpin, OUTPUT);
+  digitalWrite(DBGpin, HIGH);   // force it HIGH
+  pinMode(DBGpin, INPUT_PULLUP);
+  DBG = digitalRead(DBGpin);
+
   // You can use Ethernet.init(pin) to configure the CS pin
   Ethernet.init(10);  // Most Arduino shields
   //Ethernet.init(5);   // MKR ETH shield
@@ -55,13 +67,13 @@ void setup() {
 
   // start the Ethernet connection
   Ethernet.begin(mac, ip, dns, gw, msk);
-  // start the Serial Port to ME007YS  
+  // start the Serial Port to ME007YS
   mySerial.begin(9600);
   mySerial.flush();
 
   // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    dbgPrintln("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
     while (true) {
       delay(1); // do nothing, no point running without Ethernet hardware
     }
@@ -69,9 +81,9 @@ void setup() {
 
   // give the sensor and Ethernet shield time to set up:
   delay(1000);
-  
+
   if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Ethernet cable is not connected.");
+    dbgPrintln("Ethernet cable is not connected.");
   }
 
   // start listening for clients
@@ -82,74 +94,116 @@ void setup() {
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-  Serial.println("*** ME007YS_WebServer started ***");
+  dbgPrintln("*** ME007YS_WebServer started ***");
 }
 
 
-static int idx = 0;
-static int chk = 0x00;
-static unsigned long tim0 = 0;
-static unsigned long tim1;
+int idx = 0;
+int chk = 0x00;
+unsigned long tim0 = 0;
+unsigned long tim1;
 
 void listenForEthernetClients() {
   // listen for incoming clients
-  char  buf[256];
-  int   ptr;
+  const int depth = 8;
+  char      *nil = (char *) "";
+
+  char    buf[256];
+  char    *cptr, *dup = (char *) NULL;
+  char    *path[depth];
+  int     i, iptr;
+
+
+  for (i = 0; i < depth; ++i) path[i] = nil;
 
   EthernetClient client = server.available();
+
   if (client) {
     // an http request ends with a blank line
-    ptr = 0;
-
+    iptr = 0;
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-
-      /*
-        if (c == '\n') Serial.println("\\n");
-        else if (c == '\r') Serial.print("\\r");
-        else Serial.print(c);
-*/
 
         // if you've gotten to the end of the line (received a newline
         // character) and the line is blank, the http request has ended,
         // so you can send a reply
         if (c == '\n') {
-          if (ptr == 0) {
+          if (iptr == 0) {
             // send a standard http response header
             client.println("HTTP/1.1 200 OK");
             client.println("Content-Type: text/html");
             client.println();
-            
+
             // print the current readings, in HTML format:
-            client.print("0 - Distance: ");
-            client.print(distance[0]/10);
-            client.print("cm");
-            client.println("<br />");
-            
-            client.print("1 - Distance: ");
-            client.print(distance[1]/10);
-            client.print("cm");
-            client.println("<br />");
+            if (strcmp(path[1], "waterput") == 0) {
+              if (strcmp(path[2], "diepte") == 0) {
+                i = atoi(path[3]);
+                if ((0 < i) && (i< 3)) {
+                  if (strcmp(path[0], "json") == 0) {
+                    client.print("{ \"Diepte");
+                    client.print(i);
+                    client.print("\": ");
+                    client.print(distance[i-1]/10);
+                    client.print("}");
+                  } else if (strcmp(path[0], "xml") == 0) {
+                    client.println("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+
+                    client.print("<LL control=\"");
+                    for (int j = 0; j < 4; ++j) {
+                      client.print("/");
+                      client.print(path[j]);
+                    }
+                    
+                    client.print("\" value=\"");
+                    client.print(distance[i-1]/10);
+                    client.print("\" Code=\"200\"/>");
+                  } else {
+                    client.println("<h1>Ongeldige protocol</h1>");
+                    client.println("<br>Alleen JSON of XML wordt (momenteel) ondersteund.");
+                  }
+                } else {
+                  client.println("<h1>Ongeldige index</h1>");
+                  client.println("<br>Alleen '1' of '2' wordt (momenteel) ondersteund.");
+                }
+              } else {
+                client.println("<h1>Ongeldige parameter</h1>");
+                client.println("<br>Alleen 'diepte' wordt (momenteel) ondersteund.");
+              }
+            } else {
+              client.println("<h1>Ongeldige unit</h1>");
+              client.println("<br>Alleen 'waterput wordt (momenteel) ondersteund.");
+            }
 
             break;
           } else {
-            buf[ptr] = '\0';
-            Serial.print("strcasestr - ");
-            Serial.println(strcasestr(buf, "get"));
-            Serial.println(buf);
-            ptr = 0;
+            buf[iptr] = '\0';
+            cptr = strcasestr(buf, "get ");
+
+            if (cptr != (char *) NULL) {
+              cptr = strchr(cptr, '/');       // start of URI
+              *strchr(cptr, ' ') = '\0';      // null terminate URI
+
+              i = 0;
+              cptr = strtok((dup = strdup(cptr)), "/");
+              while (cptr != (char *) NULL)  {
+                path[i++] = cptr;
+                cptr = strtok(NULL, "/");
+              }
+            }
+
+            iptr = 0;
           }
         } else if (c != '\r') {
           // you've gotten a character on the current line
-          buf[ptr++] = c;
+          buf[iptr++] = c;
         }
       }
     }
-    // give the web browser time to receive the data
-    delay(1);
-    // close the connection:
-    client.stop();
+
+    free(dup);      // if 'ptr' is NULL, no operation is performed.
+    delay(1);       // give the web browser time to receive the data
+    client.stop();  // close the connection:
   }
 }
 
@@ -158,11 +212,12 @@ void listenForEthernetClients() {
   * of the three previous bytes, a valid reading is done.
   */
  void loop() {
-  data[idx] = mySerial.read();
+  DBG = digitalRead(DBGpin);
 
+  data[idx] = mySerial.read();
   if (data[(idx+1)%4] == 0xff) {
     chk=(data[(idx+1)%4] + data[(idx+2)%4]+data[(idx+3)%4]) & 0x00FF;
-    
+
     if (data[idx] == chk) {
       mySerial.flush();
 
@@ -172,25 +227,22 @@ void listenForEthernetClients() {
 
   tim1 = millis();
   if ((tim1-tim0) > 1000) {
-    Serial.print(toggle);
+    /*
     if(distance[toggle] > 280) {
-      /*
-      Serial.print(" - distance=");
-      Serial.print(distance[toggle]/10);
-      Serial.println("cm");
-      */
+      dbgPrint(" - distance=");
+      dbgPrint(distance[toggle]/10);
+      dbgPrintln("cm");
     }else {
-      /*
-      Serial.println(" - below the lower limit");
-      */
+      dbgPrintln(" - below the lower limit");
     }
-    
+    */
+
     tim0 = tim1;
     toggle = 1 - toggle;
     digitalWrite(MUXpin, toggle);
     mySerial.flush();
-  }      
-  
+  }
+
   idx = ++idx % 4;
 
   // listen for incoming Ethernet connections:
