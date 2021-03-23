@@ -1,0 +1,6 @@
+{
+    "programmer": "ArduinoISP",
+    "board": "arduino:avr:uno",
+    "port": "/dev/tty.usbmodem14401",
+    "sketch": "ME007YS-WebServer/ME007YS-WebServer.ino"
+}

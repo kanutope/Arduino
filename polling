@@ -1,0 +1,7 @@
+. /etc/function.local
+while [ 1 ]; do
+  TS=$( ts -s )
+  echo ${TS} $( curl -s http://arduino/json/waterput/diepte/1 )
+  echo ${TS} $( curl -s http://arduino/json/waterput/diepte/2 )
+  sleep 1
+done

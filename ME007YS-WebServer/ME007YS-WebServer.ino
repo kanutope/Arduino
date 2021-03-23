@@ -21,8 +21,8 @@ byte mac[] = {
   0xA8, 0x61, 0x0A, 0xAE, 0x81, 0x77
 };
 // assign an IP address for the controller: 192.168.1.41
-IPAddress ip(192, 168, 1, 41);
-IPAddress gw(192, 168, 1, 1);
+IPAddress ip(172, 16, 1, 41);
+IPAddress gw(172, 16, 1, 1);
 IPAddress msk(255, 255, 255, 0);
 IPAddress dns(195, 130, 130, 5);
 
@@ -44,7 +44,7 @@ int DBG = 0;
 
 SoftwareSerial mySerial(RXpin, TXpin); // RX, TX
 
-unsigned char data[4]={0, 0, 0, 0};
+unsigned char data[4]={0xAA, 0xAA, 0xAA, 0xAA};
 float distance[2] = {-1, -1};
 int toggle = 0;
 
@@ -53,7 +53,7 @@ void setup() {
   digitalWrite(MUXpin, toggle);
 
   pinMode(DBGpin, OUTPUT);
-  digitalWrite(DBGpin, HIGH);   // force it HIGH
+  digitalWrite(DBGpin, HIGH);     // force it HIGH
   pinMode(DBGpin, INPUT_PULLUP);
   DBG = digitalRead(DBGpin);
 
@@ -145,7 +145,7 @@ void listenForEthernetClients() {
                     client.print(i);
                     client.print("\": ");
                     client.print(distance[i-1]/10);
-                    client.print("}");
+                    client.println("}");
                   } else if (strcmp(path[0], "xml") == 0) {
                     client.println("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
 
@@ -157,7 +157,7 @@ void listenForEthernetClients() {
                     
                     client.print("\" value=\"");
                     client.print(distance[i-1]/10);
-                    client.print("\" Code=\"200\"/>");
+                    client.println("\" Code=\"200\"/>");
                   } else {
                     client.println("<h1>Ongeldige protocol</h1>");
                     client.println("<br>Alleen JSON of XML wordt (momenteel) ondersteund.");
@@ -207,6 +207,7 @@ void listenForEthernetClients() {
   }
 }
 
+unsigned long PERIOD = 2000;
  /*
   * read 1 byte per each loop.As soon as this latest byte equals the checksum
   * of the three previous bytes, a valid reading is done.
@@ -226,8 +227,7 @@ void listenForEthernetClients() {
   }
 
   tim1 = millis();
-  if ((tim1-tim0) > 1000) {
-    /*
+  if ((tim1-tim0) > PERIOD) {
     if(distance[toggle] > 280) {
       dbgPrint(" - distance=");
       dbgPrint(distance[toggle]/10);
@@ -235,7 +235,6 @@ void listenForEthernetClients() {
     }else {
       dbgPrintln(" - below the lower limit");
     }
-    */
 
     tim0 = tim1;
     toggle = 1 - toggle;
